@@ -36,6 +36,7 @@ class FrameChecker(ast.NodeVisitor):
 
         self.frames: FrameHistory = FrameHistory()
         self.column_accesses: ColumnHistory = ColumnHistory()
+        self.in_conditional_block: bool = False
         self.definitions: dict[str, Result] = {}
         self.diagnostics: list[Diagnostic] = []
         self.source: CodeSource
@@ -129,7 +130,35 @@ class FrameChecker(ast.NodeVisitor):
                         self.frames.add(new_frame)
 
     @override
+    def visit_If(self, node: ast.If):
+        self.in_conditional_block = True
+
+        self.generic_visit(node)
+
+        self.in_conditional_block = False
+
+    @override
     def visit_Assign(self, node: ast.Assign):
+        if self.in_conditional_block:
+            for target in node.targets:
+                if isinstance(target, ast.Subscript) and isinstance(
+                    target.value, ast.Name
+                ):
+                    df_name = target.value.id
+                    if last_frame := self.frames.get_before(node.lineno, df_name):
+                        column_name = ""
+                        if isinstance(target.slice, ast.Constant):
+                            column_name = target.slice.value
+
+                        diagnostic = Diagnostic(
+                            column_name=column_name,
+                            message=f"Column '{column_name}' exists only if the statement in line {node.lineno} is evaluated as True",
+                            severity=Severity.WARNING,
+                            region=CodeRegion.from_ast_node(node=node),
+                            hint=[],
+                            definition_region=last_frame.defined_region,
+                        )
+                        self.diagnostics.append(diagnostic)
         for target in node.targets:
             match target:
                 case ast.Subscript(value=ast.Name(id=df_name), slice=subscript_slice):
