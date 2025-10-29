@@ -10,6 +10,7 @@ class IllegalAccess:
 
 class Severity(StrEnum):
     ERROR = "error"
+    WARNING = "warning"
 
 
 @dataclass(kw_only=True, frozen=True, slots=True)
