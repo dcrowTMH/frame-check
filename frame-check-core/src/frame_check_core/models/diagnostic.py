@@ -1,5 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
+from .region import CodeRegion
 
 
 class IllegalAccess:
@@ -10,14 +12,24 @@ class Severity(StrEnum):
     ERROR = "error"
 
 
-@dataclass
+@dataclass(kw_only=True, frozen=True, slots=True)
+class CodeSource:
+    path: Path | None = field(default=None)
+    code: str = ""
+
+    @property
+    def is_traceable(self) -> bool:
+        """Check if the code is traceable to a source file or code string."""
+        return self.path is not None or self.code != ""
+
+
+@dataclass(kw_only=True)
 class Diagnostic:
     column_name: str
     message: str
     severity: Severity
-    location: tuple[int, int]
-    underline_length: int = 0
+    region: CodeRegion
     hint: list[str] | None = None
     name_suggestion: str | None = None
-    definition_location: tuple[int, int] | None = None
-    data_source_location: tuple[int, int] | None = None
+    definition_region: CodeRegion | None = None
+    data_src_region: CodeRegion | None = None
